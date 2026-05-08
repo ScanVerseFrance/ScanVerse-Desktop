@@ -1,0 +1,31 @@
+{
+  "appId": "com.scanverse.installer",
+  "productName": "ScanVerse Setup",
+  "copyright": "Copyright © 2026 ScanVerse",
+  "directories": {
+    "app": "installer",
+    "output": "dist"
+  },
+  "files": [
+    "**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "installer/payload",
+      "to": "payload",
+      "filter": ["**/*"]
+    }
+  ],
+  "win": {
+    "target": [
+      { "target": "portable", "arch": ["x64"] }
+    ],
+    "icon": "assets/installer-icon.ico",
+    "artifactName": "ScanVerse-Setup-${version}.${ext}"
+  },
+  "portable": {
+    "artifactName": "ScanVerse-Setup-${version}.${ext}"
+  },
+  "asar": true,
+  "compression": "maximum"
+}

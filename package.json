@@ -1,0 +1,88 @@
+{
+  "name": "scanverse-webview",
+  "version": "0.2.0",
+  "description": "Native desktop wrapper for ScanVerse with Discord Rich Presence",
+  "main": "src/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env SCANVERSE_DEV=1 electron .",
+    "lan": "cross-env SCANVERSE_DEV=1 SCANVERSE_URL=http://192.168.2.100:5173 electron .",
+    "build:win": "electron-builder --win",
+    "build:win:dir": "electron-builder --win --dir",
+    "build:setup": "node scripts/build-installer.js",
+    "installer:dev": "cross-env SCANVERSE_INSTALLER_DEV=1 electron installer/"
+  },
+  "author": "djemo",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "discord-rpc": "^4.0.1"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^41.5.0",
+    "electron-builder": "^26.8.1",
+    "sharp": "^0.34.5"
+  },
+  "build": {
+    "appId": "com.scanverse.webview",
+    "productName": "ScanVerse",
+    "copyright": "Copyright © 2026 ScanVerse",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json",
+      "!**/*.{md,markdown}"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "artifactName": "ScanVerse-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ScanVerse",
+      "menuCategory": "ScanVerse",
+      "language": "1036",
+      "displayLanguageSelector": false,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "assets/installer-icon.ico",
+      "uninstallerIcon": "assets/installer-icon.ico",
+      "installerHeaderIcon": "assets/installer-icon.ico",
+      "installerHeader": "assets/installerHeader.bmp",
+      "installerSidebar": "assets/installerSidebar.bmp",
+      "uninstallerSidebar": "assets/uninstallerSidebar.bmp",
+      "license": "assets/license-fr.txt",
+      "uninstallDisplayName": "ScanVerse ${version}",
+      "include": "assets/installer.nsh"
+    },
+    "portable": {
+      "artifactName": "ScanVerse-Portable-${version}.${ext}"
+    },
+    "extraMetadata": {
+      "main": "src/main.js"
+    }
+  }
+}

@@ -1,0 +1,129 @@
+/**
+ * Thin wrapper around discord-rpc with auto-reconnect and a single
+ * "current presence" cache so we don't spam Discord with identical payloads.
+ */
+const RPC = require('discord-rpc');
+
+const CLIENT_ID = '1500986435220541591';
+
+let client = null;
+let connected = false;
+let connecting = false;
+let lastPayload = null;
+let queued = null;
+
+// Session-aware timestamp: when the same _sessionKey is provided across
+// multiple updates, we keep the original startTimestamp so Discord shows
+// elapsed time over the *whole reading session*, not since the last page
+// turn or chapter change. Reader uses sessionKey "reader:<mangaId>" — so
+// going between chapters of the same manga preserves the timer.
+let sessionKey = null;
+let sessionStart = null;
+
+RPC.register(CLIENT_ID);
+
+async function connect() {
+  if (connected || connecting) return;
+  connecting = true;
+  try {
+    client = new RPC.Client({ transport: 'ipc' });
+    client.on('ready', () => {
+      connected = true;
+      console.log('[RPC] Connected as', client.user?.username || 'unknown');
+      if (queued) {
+        const p = queued;
+        queued = null;
+        sendActivity(p);
+      }
+    });
+    client.on('disconnected', () => {
+      connected = false;
+      console.log('[RPC] Disconnected');
+    });
+    await client.login({ clientId: CLIENT_ID });
+  } catch (err) {
+    console.warn('[RPC] Discord client unreachable —', err.message);
+    connected = false;
+    client = null;
+  } finally {
+    connecting = false;
+  }
+}
+
+function sendActivity(payload) {
+  if (!client || !connected) {
+    queued = payload;
+    connect().catch(() => {});
+    return;
+  }
+  client.setActivity(payload).catch(err => {
+    const msg = err.message || String(err);
+    console.error('[RPC] setActivity failed:', msg);
+    // Validation errors (bad payload, e.g. invalid URI in buttons) don't
+    // mean the transport is broken — keep the connection alive and let the
+    // next valid update through. Only tear down on actual transport errors.
+    const isValidation = /child "|fails because|valid uri|valid url|too long|secrets cannot|cannot be sent|invalid activity/i.test(msg);
+    if (!isValidation) {
+      connected = false;
+      queued = payload;
+      setTimeout(() => connect().catch(() => {}), 5000);
+    } else {
+      // Forget this bad payload so the next call (different content) is
+      // not deduped against it.
+      lastPayload = null;
+    }
+  });
+}
+
+function isSamePayload(a, b) {
+  if (!a || !b) return false;
+  return a.details === b.details
+      && a.state === b.state
+      && a.largeImageKey === b.largeImageKey
+      && a.largeImageText === b.largeImageText
+      && JSON.stringify(a.buttons || []) === JSON.stringify(b.buttons || []);
+}
+
+function updatePresence(payload) {
+  if (!payload) return;
+
+  // Persistent-session timestamp logic
+  const newKey = payload._sessionKey || `${payload.details}|${payload.state}`;
+  delete payload._sessionKey;
+  const reset = newKey !== sessionKey;
+  if (reset) {
+    sessionKey = newKey;
+    sessionStart = Date.now();
+  }
+  payload.startTimestamp = sessionStart;
+  payload.instance = false;
+
+  console.log(
+    `[RPC] sessionKey=${sessionKey} ${reset ? 'RESET' : 'PRESERVED'}`,
+    `startTimestamp=${new Date(sessionStart).toISOString()}`,
+    `payload.state="${payload.state}"`
+  );
+
+  if (isSamePayload(payload, lastPayload)) return; // de-dupe
+  lastPayload = { ...payload };
+  sendActivity(payload);
+}
+
+function clearPresence() {
+  lastPayload = null;
+  sessionKey = null;
+  sessionStart = null;
+  if (client && connected) {
+    client.clearActivity().catch(() => {});
+  }
+}
+
+async function init() {
+  await connect();
+  // periodic reconnect if Discord client is closed/reopened
+  setInterval(() => {
+    if (!connected) connect().catch(() => {});
+  }, 15000);
+}
+
+module.exports = { init, updatePresence, clearPresence };

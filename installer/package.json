@@ -1,0 +1,9 @@
+{
+  "name": "scanverse-installer",
+  "version": "0.2.0",
+  "description": "Custom Electron installer for ScanVerse",
+  "main": "main.js",
+  "private": true,
+  "author": "djemo",
+  "license": "UNLICENSED"
+}
