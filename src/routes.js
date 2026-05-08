@@ -18,6 +18,24 @@ const FALLBACK_LARGE_KEY = 'scanverse_logo'; // uploaded to Discord Dev Portal
 // fetch /uploads/avatars/... and building the "Voir l'œuvre" button link.
 // Beta URL until scanverse.fr DNS flips over to the same deployment.
 const SITE_URL = process.env.SCANVERSE_PUBLIC_URL || 'https://scanverse-beta.vercel.app';
+// Public Discord invite for the community server. Surfaces on every RPC
+// payload via buildDefaultButtons() so anyone seeing a friend on ScanVerse
+// is one click away from joining the chat.
+const DISCORD_INVITE_URL = 'https://discord.gg/scanverse';
+
+/**
+ * Two RPC buttons added to *every* presence payload that doesn't already
+ * carry a context-specific button (manga / reader). Discord caps at 2
+ * buttons per activity, so on manga/reader pages where we already have
+ * "Voir l'œuvre" we drop the generic site button and keep Discord —
+ * those users are already on the site, they don't need a button to it.
+ */
+function buildDefaultButtons() {
+  return [
+    { label: 'Ouvrir ScanVerse', url: SITE_URL },
+    { label: 'Rejoindre le Discord', url: DISCORD_INVITE_URL },
+  ];
+}
 
 // Maps the API `sort` query value to a human-readable label for RPC.
 // Keep in sync with frontend/src/components/manga/CatalogFilters.jsx.
@@ -33,6 +51,9 @@ function getPresenceForRoute(route, params = {}, extras = {}) {
   const base = {
     largeImageKey: FALLBACK_LARGE_KEY,
     largeImageText: 'ScanVerse',
+    // Default buttons; overridden by manga/reader paths where we want to
+    // surface "Voir l'œuvre" instead of "Ouvrir ScanVerse".
+    buttons: buildDefaultButtons(),
   };
 
   // Live session activity — shows "X en ligne" alongside the route info so
@@ -282,22 +303,33 @@ function sanitizeImage(url) {
 }
 
 /**
- * Build the "Voir l'œuvre" button safely.
+ * Build the buttons array for manga / reader pages.
+ *
  * Discord requires a strict URI — spaces, raw unicode, or invalid chars
  * in the manga id (e.g. "s1_scans_Hunter x Hunter") would make Discord
  * reject the *entire* activity payload, breaking presence updates.
  * We URL-encode the id and validate the result with the URL constructor.
+ *
+ * If the manga URL is malformed, we still want SOMETHING actionable, so
+ * we fall back to the generic site + Discord pair instead of returning
+ * empty buttons.
+ *
+ * Discord caps at 2 buttons. When we have a valid manga URL, we keep
+ * "Voir l'œuvre" + "Rejoindre le Discord" (drop "Ouvrir ScanVerse" since
+ * the user is already on a ScanVerse page anyway).
  */
 function buildMangaButton(id) {
-  if (!id || typeof id !== 'string') return undefined;
-  let url;
+  if (!id || typeof id !== 'string') return buildDefaultButtons();
   try {
-    url = `${SITE_URL}/manga/${encodeURIComponent(id)}`;
+    const url = `${SITE_URL}/manga/${encodeURIComponent(id)}`;
     new URL(url); // throws if malformed
+    return [
+      { label: "Voir l'œuvre", url },
+      { label: 'Rejoindre le Discord', url: DISCORD_INVITE_URL },
+    ];
   } catch {
-    return undefined;
+    return buildDefaultButtons();
   }
-  return [{ label: "Voir l'œuvre", url }];
 }
 
 module.exports = { getPresenceForRoute };

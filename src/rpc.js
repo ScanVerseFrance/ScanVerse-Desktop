@@ -1,8 +1,16 @@
 /**
  * Thin wrapper around discord-rpc with auto-reconnect and a single
  * "current presence" cache so we don't spam Discord with identical payloads.
+ *
+ * RPC events (connect / disconnect / payload validation errors) are also
+ * appended to %APPDATA%/scanverse-webview/rpc.log so a user can send the
+ * file when their Discord presence isn't showing — much easier than
+ * walking them through opening DevTools or running from a terminal.
  */
 const RPC = require('discord-rpc');
+const fs = require('fs');
+const path = require('path');
+const { app } = require('electron');
 
 const CLIENT_ID = '1500986435220541591';
 
@@ -11,6 +19,20 @@ let connected = false;
 let connecting = false;
 let lastPayload = null;
 let queued = null;
+
+// Resolve the log path lazily — `app.getPath('userData')` errors out before
+// `app.whenReady()`, and rpc.js is required from main.js at load time.
+let logPath = null;
+function getLogPath() {
+  if (logPath) return logPath;
+  try { logPath = path.join(app.getPath('userData'), 'rpc.log'); } catch {}
+  return logPath;
+}
+function logToFile(msg) {
+  const p = getLogPath();
+  if (!p) return;
+  fs.appendFile(p, `[${new Date().toISOString()}] ${msg}\n`, () => {});
+}
 
 // Session-aware timestamp: when the same _sessionKey is provided across
 // multiple updates, we keep the original startTimestamp so Discord shows
@@ -29,7 +51,9 @@ async function connect() {
     client = new RPC.Client({ transport: 'ipc' });
     client.on('ready', () => {
       connected = true;
-      console.log('[RPC] Connected as', client.user?.username || 'unknown');
+      const who = client.user?.username || 'unknown';
+      console.log('[RPC] Connected as', who);
+      logToFile(`Connected as ${who}`);
       if (queued) {
         const p = queued;
         queued = null;
@@ -39,10 +63,12 @@ async function connect() {
     client.on('disconnected', () => {
       connected = false;
       console.log('[RPC] Disconnected');
+      logToFile('Disconnected');
     });
     await client.login({ clientId: CLIENT_ID });
   } catch (err) {
     console.warn('[RPC] Discord client unreachable —', err.message);
+    logToFile(`login failed: ${err.message || err}`);
     connected = false;
     client = null;
   } finally {
@@ -59,6 +85,7 @@ function sendActivity(payload) {
   client.setActivity(payload).catch(err => {
     const msg = err.message || String(err);
     console.error('[RPC] setActivity failed:', msg);
+    logToFile(`setActivity failed: ${msg} | payload=${JSON.stringify({ details: payload.details, state: payload.state, hasButtons: !!payload.buttons })}`);
     // Validation errors (bad payload, e.g. invalid URI in buttons) don't
     // mean the transport is broken — keep the connection alive and let the
     // next valid update through. Only tear down on actual transport errors.

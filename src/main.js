@@ -25,6 +25,31 @@ const ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.png');
 const { init: initRpc, updatePresence, clearPresence } = require('./rpc');
 const { getPresenceForRoute } = require('./routes');
 const { checkForUpdates } = require('./update-check');
+const fs = require('fs');
+const os = require('os');
+
+/**
+ * Sweep stale ScanVerse installer .exes from %TEMP%.
+ *
+ * The in-app updater downloads each new release into the OS temp dir
+ * (see update-check.js → ipc 'update:download'). After a successful
+ * silent install the file isn't needed anymore, but the *running*
+ * installer can't delete its own .exe. So we wait until the next launch
+ * of ScanVerse — which is *after* the silent installer relaunched us —
+ * and clean the residue here. unlinkSync swallows EBUSY/EPERM silently:
+ * if for some reason the installer is still running, its file stays
+ * locked; we just try again next launch.
+ */
+function cleanupStaleInstallers() {
+  try {
+    const tmp = os.tmpdir();
+    for (const name of fs.readdirSync(tmp)) {
+      if (/^ScanVerse-Setup-.*\.exe$/i.test(name)) {
+        try { fs.unlinkSync(path.join(tmp, name)); } catch {}
+      }
+    }
+  } catch {/* ignore — best-effort */}
+}
 
 const isDev = !!process.env.SCANVERSE_DEV;
 // scanverse.fr is the eventual public domain but isn't live yet — until
@@ -408,6 +433,11 @@ app.on('open-url', (event, url) => {
 });
 
 app.whenReady().then(async () => {
+  // Clean up any installer .exe left in %TEMP% by a previous in-app update.
+  // Runs before window creation so it's done by the time the user pokes
+  // around (on the off-chance they'd notice anyway).
+  cleanupStaleInstallers();
+
   await initRpc();
   createWindow();
 

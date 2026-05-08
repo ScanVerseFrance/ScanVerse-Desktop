@@ -94,10 +94,10 @@ function showUpdateWindow(parent) {
     width: 520,
     height: 380,
     parent: parent || undefined,
-    // Non-modal: user can keep reading manga while the download runs.
-    // The window stays glued to the parent and minimises with it though,
-    // which feels less aggressive than a full modal.
-    modal: false,
+    // Modal: blocks input on the parent until dismissed. Keeps the user's
+    // attention on the update flow and avoids weird states like clicking
+    // through to the manga reader mid-download.
+    modal: true,
     frame: false,
     resizable: false,
     minimizable: false,
