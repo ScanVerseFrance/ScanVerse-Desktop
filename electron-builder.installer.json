@@ -1,7 +1,7 @@
 {
   "appId": "com.scanverse.installer",
   "productName": "ScanVerse Setup",
-  "copyright": "Copyright © 2026 ScanVerse",
+  "copyright": "Copyright © 2026 Team ScanVerse",
   "directories": {
     "app": "installer",
     "output": "dist"

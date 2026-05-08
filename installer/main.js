@@ -261,7 +261,7 @@ function registerUninstall(installPath, exePath) {
     const sets = [
       ['DisplayName', 'ScanVerse'],
       ['DisplayVersion', require('./package.json').version],
-      ['Publisher', 'ScanVerse'],
+      ['Publisher', 'Team ScanVerse'],
       ['DisplayIcon', exePath],
       ['InstallLocation', installPath],
       ['UninstallString', `cmd.exe /c "${path.join(installPath, 'Uninstall.cmd')}"`],

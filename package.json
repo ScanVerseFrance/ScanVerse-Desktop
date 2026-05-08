@@ -1,6 +1,6 @@
 {
   "name": "scanverse-webview",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Native desktop wrapper for ScanVerse with Discord Rich Presence",
   "main": "src/main.js",
   "private": true,
@@ -13,7 +13,11 @@
     "build:setup": "node scripts/build-installer.js",
     "installer:dev": "cross-env SCANVERSE_INSTALLER_DEV=1 electron installer/"
   },
-  "author": "djemo",
+  "author": {
+    "name": "Team ScanVerse",
+    "email": "contact@scanverse.fr",
+    "url": "https://scanverse-beta.vercel.app"
+  },
   "license": "UNLICENSED",
   "dependencies": {
     "discord-rpc": "^4.0.1"
@@ -27,7 +31,7 @@
   "build": {
     "appId": "com.scanverse.webview",
     "productName": "ScanVerse",
-    "copyright": "Copyright © 2026 ScanVerse",
+    "copyright": "Copyright © 2026 Team ScanVerse",
     "directories": {
       "output": "dist",
       "buildResources": "assets"

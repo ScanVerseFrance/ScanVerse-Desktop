@@ -1,9 +1,13 @@
 {
   "name": "scanverse-installer",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Custom Electron installer for ScanVerse",
   "main": "main.js",
   "private": true,
-  "author": "djemo",
+  "author": {
+    "name": "Team ScanVerse",
+    "email": "contact@scanverse.fr",
+    "url": "https://scanverse-beta.vercel.app"
+  },
   "license": "UNLICENSED"
 }
