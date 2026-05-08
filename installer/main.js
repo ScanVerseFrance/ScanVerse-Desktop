@@ -42,8 +42,24 @@ if (process.platform === 'win32') {
   app.setAppUserModelId('com.scanverse.installer');
 }
 
+// ── Silent mode detection ────────────────────────────────────────────────────
+// When the running ScanVerse app downloads an update and wants to apply it
+// without bothering the user, it spawns this installer with
+//   ScanVerse-Setup-X.Y.Z.exe --silent --install-path <existing-install-dir>
+// In that mode we skip the wizard UI entirely, kill the old app process,
+// overwrite the install dir in place, then relaunch ScanVerse.
+function getArg(name) {
+  const i = process.argv.indexOf(`--${name}`);
+  if (i !== -1 && i + 1 < process.argv.length) return process.argv[i + 1];
+  return null;
+}
+const IS_SILENT = process.argv.includes('--silent');
+const SILENT_INSTALL_PATH = getArg('install-path');
+
 // Single-instance: don't let two installer windows run at once.
-const lock = app.requestSingleInstanceLock();
+// Silent mode skips the lock — the calling ScanVerse already quit, but the
+// portable launcher mechanism may briefly overlap during update self-extract.
+const lock = IS_SILENT ? true : app.requestSingleInstanceLock();
 if (!lock) { app.quit(); }
 
 const ICON_PATH = path.join(__dirname, 'assets', 'icon.png');
@@ -91,9 +107,85 @@ function createWindow() {
   if (process.env.SCANVERSE_INSTALLER_DEV) win.webContents.openDevTools({ mode: 'detach' });
 }
 
-app.whenReady().then(createWindow);
+if (IS_SILENT) {
+  app.whenReady().then(runSilentInstall);
+} else {
+  app.whenReady().then(createWindow);
+}
 
 app.on('window-all-closed', () => app.quit());
+
+// ── Silent install path ──────────────────────────────────────────────────────
+// Headless update — invoked by the running ScanVerse app via:
+//   spawn(setupExe, ['--silent', '--install-path', <existingDir>])
+// Steps:
+//   1. Wait a beat for the calling process to die so file locks release.
+//   2. taskkill any leftover ScanVerse.exe just in case.
+//   3. Overwrite-copy the payload over the existing install (no clean —
+//      orphan files from old versions will linger, that's fine).
+//   4. Re-write the uninstaller + uninstall registry key with the new
+//      version string.
+//   5. Launch the new ScanVerse.exe and quit.
+//
+// All of this runs without UI. Errors go to %TEMP%/scanverse-installer.log
+// where the user can find them if something breaks.
+async function runSilentInstall() {
+  const installPath = SILENT_INSTALL_PATH || DEFAULT_INSTALL_DIR;
+  const logPath = path.join(os.tmpdir(), 'scanverse-installer.log');
+  const log = (msg) => {
+    const line = `[${new Date().toISOString()}] [silent] ${msg}\n`;
+    return fsp.appendFile(logPath, line).catch(() => {});
+  };
+
+  await log(`Start. installPath=${installPath} pid=${process.pid}`);
+  try {
+    // 1. Let the caller's process clean up (file handles release).
+    await sleep(2000);
+
+    // 2. Force-kill any stale ScanVerse.exe (caller should have quit
+    //    already, but if it crashed mid-quit we need files unlocked).
+    await new Promise(resolve => {
+      execFile('taskkill', ['/IM', 'ScanVerse.exe', '/F', '/T'],
+        { windowsHide: true }, () => resolve());
+    });
+    await sleep(800);
+
+    const payload = resolvePayloadPath();
+    if (!payload) {
+      await log('ABORT: payload not found');
+      app.quit();
+      return;
+    }
+
+    // 3. Overwrite-copy the payload. We deliberately skip ensureCleanDir —
+    //    in update mode we want to preserve any user-side files in the
+    //    install dir (cache etc.) and just replace the binaries.
+    await ofsp.mkdir(installPath, { recursive: true });
+    await copyDir(payload, installPath, () => {});
+    await log(`Copy done`);
+
+    // 4. Refresh uninstaller + registry with the new version.
+    await writeUninstaller(installPath);
+    const exePath = path.join(installPath, 'ScanVerse.exe');
+    await registerUninstall(installPath, exePath);
+    await log(`Registry refreshed`);
+
+    // 5. Launch the new app, detached.
+    if (fs.existsSync(exePath)) {
+      spawn(exePath, [], { detached: true, stdio: 'ignore' }).unref();
+      await log(`Launched ${exePath}`);
+    } else {
+      await log(`ERROR: ${exePath} missing after copy`);
+    }
+  } catch (err) {
+    await log(`FAIL: ${err && (err.stack || err.message || err)}`);
+  } finally {
+    // Give the spawned ScanVerse a moment to take over before we exit.
+    setTimeout(() => app.quit(), 500);
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── IPC ──────────────────────────────────────────────────────────────────────
 // Renderer asks for default path / picks a folder / kicks off install.
