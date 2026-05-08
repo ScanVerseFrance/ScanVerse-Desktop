@@ -17,7 +17,7 @@ const FALLBACK_LARGE_KEY = 'scanverse_logo'; // uploaded to Discord Dev Portal
 // Used for two purposes: prefixing relative image URLs so Discord can
 // fetch /uploads/avatars/... and building the "Voir l'œuvre" button link.
 // Beta URL until scanverse.fr DNS flips over to the same deployment.
-const SITE_URL = process.env.SCANVERSE_PUBLIC_URL || 'https://scanverse-beta.vercel.app';
+const SITE_URL = process.env.SCANVERSE_PUBLIC_URL || 'https://www.scanverse.online';
 // Public Discord invite for the community server. Surfaces on every RPC
 // payload via buildDefaultButtons() so anyone seeing a friend on ScanVerse
 // is one click away from joining the chat.

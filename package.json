@@ -1,6 +1,6 @@
 {
   "name": "scanverse-webview",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Native desktop wrapper for ScanVerse with Discord Rich Presence",
   "main": "src/main.js",
   "private": true,
@@ -16,7 +16,7 @@
   "author": {
     "name": "Team ScanVerse",
     "email": "contact@scanverse.fr",
-    "url": "https://scanverse-beta.vercel.app"
+    "url": "https://www.scanverse.online"
   },
   "license": "UNLICENSED",
   "dependencies": {

@@ -52,10 +52,10 @@ function cleanupStaleInstallers() {
 }
 
 const isDev = !!process.env.SCANVERSE_DEV;
-// scanverse.fr is the eventual public domain but isn't live yet — until
-// the DNS / CNAME flips over to point at the same Vercel deployment we
-// run against the canonical beta URL so the app actually loads.
-const TARGET_URL = process.env.SCANVERSE_URL || (isDev ? 'http://localhost:5173' : 'https://scanverse-beta.vercel.app');
+// Production target. www.scanverse.online is the canonical public domain
+// (CNAME flipped to the Vercel deployment). Override with SCANVERSE_URL
+// when pointing at a staging build or a LAN dev server.
+const TARGET_URL = process.env.SCANVERSE_URL || (isDev ? 'http://localhost:5173' : 'https://www.scanverse.online');
 
 let mainWindow = null;
 

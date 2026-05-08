@@ -51,7 +51,7 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 .titlebar-sub {
   color: var(--text-dim); font-weight: 600; font-size: 12px; letter-spacing: 0;
 }
-/* Wordmark — matches the navbar on scanverse-beta.vercel.app exactly:
+/* Wordmark — matches the navbar on www.scanverse.online exactly:
    "Scan" in white + "Verse" in the accent purple. No icon, no mark.
    The earlier gradient SV badge looked off-brand because the actual
    logo on the site is type-only.                                          */

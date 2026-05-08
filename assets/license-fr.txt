@@ -9,7 +9,7 @@ En installant cette application, vous acceptez :
   • L'usage strictement personnel et privé du logiciel.
   • L'utilisation de Discord Rich Presence (désactivable à tout moment
     depuis Paramètres → Confidentialité → Activité Discord).
-  • La connexion sortante vers https://scanverse-beta.vercel.app
+  • La connexion sortante vers https://www.scanverse.online
     pour charger l'interface, et vers Discord pour le statut.
 
 Aucune donnée personnelle n'est collectée par l'application desktop

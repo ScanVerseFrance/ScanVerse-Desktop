@@ -15,7 +15,7 @@
 
 ; ── Welcome / Finish page customisation ─────────────────────────────────
 !define MUI_WELCOMEPAGE_TITLE          "Bienvenue sur l'installation de ScanVerse"
-!define MUI_WELCOMEPAGE_TEXT           "Cet assistant va installer ScanVerse sur votre ordinateur.$\r$\n$\r$\nL'application est un client desktop léger qui se connecte à scanverse-beta.vercel.app et active la présence Discord (manga en cours, chapitre, page) pendant que vous lisez.$\r$\n$\r$\nCliquez sur Suivant pour continuer."
+!define MUI_WELCOMEPAGE_TEXT           "Cet assistant va installer ScanVerse sur votre ordinateur.$\r$\n$\r$\nL'application est un client desktop léger qui se connecte à www.scanverse.online et active la présence Discord (manga en cours, chapitre, page) pendant que vous lisez.$\r$\n$\r$\nCliquez sur Suivant pour continuer."
 
 !define MUI_FINISHPAGE_TITLE           "Installation terminée"
 !define MUI_FINISHPAGE_TEXT            "ScanVerse est prêt. Lancez l'application pour découvrir le catalogue manga & comics, suivre vos amis et activer la présence Discord."
