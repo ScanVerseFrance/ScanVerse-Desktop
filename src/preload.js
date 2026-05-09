@@ -82,10 +82,11 @@ function injectTitleBar() {
   const style = document.createElement('style');
   style.id = 'sv-titlebar-style';
   style.textContent = `
-    /* Push the page content below the bar so the site's own navbar is
-       not occluded. position:fixed is intentional — we want the bar to
-       stay visible during scrolling, just like the native one it
-       replaces. */
+    /* Push the page content below the bar — the site's own floating
+       navbar wrapper uses inline styles (position:fixed; top:16px) so
+       Tailwind class selectors won't catch it; the JS pass below
+       (shiftTopFixedElements) handles those case-by-case. body padding
+       still helps non-fixed top content (the splash spinner etc.). */
     body { padding-top: ${TITLE_BAR_HEIGHT}px !important; }
 
     #sv-titlebar {
@@ -173,3 +174,101 @@ ipcRenderer.on('titlebar:context', (_event, msg) => {
   // strings (manga titles, usernames) that we don't want HTML-rendered.
   ctx.textContent = msg.label || 'ScanVerse';
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// Shift any fixed-positioned element pinned to the top edge so it doesn't
+// sit underneath our injected title bar.
+//
+// The site's floating navbar uses an inline `style="position: fixed;
+// top: 16px; …"` wrapper (no class), which means CSS class selectors
+// won't catch it. Instead we walk the DOM, identify elements that are
+// position:fixed with a top offset less than the title bar height, and
+// add TITLE_BAR_HEIGHT to their `top` value via inline `!important`.
+// Each shifted element gets a `data-sv-top-shifted` marker so we never
+// double-shift, even across MutationObserver re-runs.
+//
+// The MutationObserver watches for nodes added to the body and for
+// inline-style mutations on existing elements (the navbar wrapper's
+// style attribute may be re-rendered by React on theme changes etc.)
+// so newly-mounted toolbars/popovers also get the shift.
+// ──────────────────────────────────────────────────────────────────────────
+
+function shiftElementIfNeeded(el) {
+  if (!el || el.nodeType !== 1) return;
+  if (el.id === 'sv-titlebar') return;
+  if (el.dataset.svTopShifted === '1') return;
+  // Skip nodes outside the body (e.g. the title bar itself when re-checked,
+  // and elements in <head>).
+  if (!document.body || !document.body.contains(el)) return;
+  const cs = getComputedStyle(el);
+  if (cs.position !== 'fixed') return;
+  const top = parseFloat(cs.top);
+  if (!Number.isFinite(top)) return;
+  if (top >= TITLE_BAR_HEIGHT) return; // already clear of the title bar
+  // Don't touch full-screen overlays anchored at top:0 with bottom:0 —
+  // shifting them down 32 px would create a 32 px gap at the bottom.
+  // Only shift things that look like top-anchored bars (height < 200 px).
+  if (el.offsetHeight > 0 && el.offsetHeight > 200 && parseFloat(cs.bottom) === 0) {
+    return;
+  }
+  el.dataset.svTopShifted = '1';
+  el.dataset.svOriginalTop = String(top);
+  el.style.setProperty('top', `${top + TITLE_BAR_HEIGHT}px`, 'important');
+}
+
+function scanAndShiftFixedElements() {
+  if (!document.body) return;
+  // Scan the most likely suspects first — narrows the iteration cost.
+  // Layout containers, semantic landmarks, and anything carrying a
+  // `style` attribute (which is how the navbar wrapper expresses its
+  // position:fixed in the live site).
+  const candidates = document.querySelectorAll(
+    'nav, header, aside, [role="banner"], [role="navigation"], [style*="fixed"], [class*="fixed"]'
+  );
+  candidates.forEach(shiftElementIfNeeded);
+}
+
+function startTopFixedShifter() {
+  scanAndShiftFixedElements();
+
+  const obs = new MutationObserver(muts => {
+    let needsScan = false;
+    for (const m of muts) {
+      if (m.type === 'childList') {
+        for (const n of m.addedNodes) {
+          if (n.nodeType === 1) shiftElementIfNeeded(n);
+        }
+      } else if (m.type === 'attributes' && (m.attributeName === 'style' || m.attributeName === 'class')) {
+        // Style/class change can flip an element to position:fixed at
+        // top:0 — re-evaluate. Cheap enough to do per-mutation since
+        // the predicate inside shiftElementIfNeeded short-circuits fast.
+        const el = m.target;
+        // Reset the marker so we re-evaluate after a style swap.
+        if (el.dataset && el.dataset.svTopShifted === '1') {
+          // If the element still has its shifted top, skip; otherwise re-shift.
+          // Simplest: leave it shifted unless React removes the position:fixed.
+        } else {
+          shiftElementIfNeeded(el);
+        }
+      }
+    }
+    if (needsScan) scanAndShiftFixedElements();
+  });
+  obs.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ['style', 'class'],
+  });
+  // Belt-and-braces — the React app may mount the navbar after our
+  // initial scan, so we re-scan one more time after a tick. Cheap.
+  setTimeout(scanAndShiftFixedElements, 500);
+  setTimeout(scanAndShiftFixedElements, 1500);
+}
+
+// Kick the shifter off as soon as we have a body to work with.
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', startTopFixedShifter);
+} else {
+  startTopFixedShifter();
+}
