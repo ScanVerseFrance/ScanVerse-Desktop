@@ -182,6 +182,16 @@ function parseRouteFromUrl(urlStr) {
 // Synced from renderer's localStorage on DOMContentLoaded and on user toggle.
 let rpcEnabled = true;
 
+// Cache of the last *rich* payload pushed by the frontend hook.
+// Without this cache, every re-emission triggered by the wrapper itself
+// (online-count tick every 30 s, focus events, etc.) flattens the rich
+// data — title, cover, author — back to the URL-only fallback, which is
+// what causes "Lit une œuvre · Chapitre s1_scans__... · ScanVerse logo"
+// to appear after a few minutes on the same manga / reader page.
+//   route:  string ('manga' | 'reader' | 'profile' | …)
+//   params: object the frontend passed (full rich data)
+let lastRichPayload = null;
+
 // Live session activity — # of users online on ScanVerse right now.
 // Polled every 30 s from the backend; injected into all presence payloads
 // so Discord shows "Parcourt la bibliothèque · 12 en ligne" etc.
@@ -208,6 +218,27 @@ function emitPresenceFromUrl(urlStr) {
   if (!rpcEnabled) return;
   const parsed = parseRouteFromUrl(urlStr);
   if (!parsed) return;
+
+  // Prefer the cached frontend-pushed rich data when the context still
+  // matches (same route, same id). This is what keeps title/cover/author
+  // alive when the online-count poll, a focus change, or any other
+  // wrapper-internal event triggers a re-emission. Without this guard,
+  // the URL fallback would silently downgrade the activity every 30 s.
+  if (lastRichPayload && lastRichPayload.route === parsed.route) {
+    const richId = lastRichPayload.params?.id;
+    const urlId  = parsed.params?.id;
+    // Routes without an id (home, friends, settings…) match on route alone.
+    // Routes with an id (manga, reader, profile, universe…) must match on
+    // both — we don't want stale rich data from /manga/A to leak into a
+    // re-emission for /manga/B.
+    const idMatches = !richId || !urlId || String(richId) === String(urlId);
+    if (idMatches) {
+      const payload = getPresenceForRoute(lastRichPayload.route, lastRichPayload.params, { onlineCount });
+      if (payload) updatePresence(payload);
+      return;
+    }
+  }
+
   const payload = getPresenceForRoute(parsed.route, parsed.params || {}, { onlineCount });
   if (payload) updatePresence(payload);
 }
@@ -291,6 +322,10 @@ function createWindow() {
     const url = mainWindow.webContents.getURL();
     if (!url || url === lastSeenUrl) return;
     lastSeenUrl = url;
+    // The URL changed → any previously cached rich payload is stale
+    // (different page, different manga, etc.). Drop it so the URL-based
+    // fallback renders cleanly until the new page's hook fires.
+    lastRichPayload = null;
     console.log(`[Main] URL change (${reason}):`, url);
     emitPresenceFromUrl(url);
   }
@@ -478,11 +513,18 @@ ipcMain.on('presence:update', (_event, msg) => {
   if (!rpcEnabled) return;
   if (!msg || typeof msg.route !== 'string') return;
   console.log('[Main] presence:update from page —', msg.route, JSON.stringify(msg.params));
+  // Cache the rich payload so wrapper-internal re-emissions (online-count
+  // tick, focus events…) can preserve title/cover/author instead of
+  // collapsing to the URL fallback.
+  lastRichPayload = { route: msg.route, params: msg.params || {} };
   const payload = getPresenceForRoute(msg.route, msg.params || {}, { onlineCount });
   if (payload) updatePresence(payload);
 });
 
-ipcMain.on('presence:clear', () => clearPresence());
+ipcMain.on('presence:clear', () => {
+  lastRichPayload = null;
+  clearPresence();
+});
 
 ipcMain.on('presence:set-enabled', (_event, enabled) => {
   const next = !!enabled;
@@ -490,6 +532,7 @@ ipcMain.on('presence:set-enabled', (_event, enabled) => {
   rpcEnabled = next;
   console.log('[Main] RPC privacy →', rpcEnabled ? 'ENABLED' : 'DISABLED');
   if (!rpcEnabled) {
+    lastRichPayload = null;
     clearPresence();
     return;
   }

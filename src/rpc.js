@@ -19,6 +19,14 @@ let connected = false;
 let connecting = false;
 let lastPayload = null;
 let queued = null;
+// Heartbeat re-emit interval — Discord's CDN drops cached asset URLs after
+// roughly 10 min of inactivity on the same payload, which manifests in the
+// wild as "the cover/avatar disappears when I stay on my profile too long".
+// Periodically re-pushing the *same* lastPayload (bypassing the de-dup
+// guard) keeps the asset cache warm. 4 min is comfortably below the
+// observed expiry and well above discord-rpc's 15s rate limit.
+const HEARTBEAT_MS = 4 * 60 * 1000;
+let heartbeatTimer = null;
 
 // Resolve the log path lazily — `app.getPath('userData')` errors out before
 // `app.whenReady()`, and rpc.js is required from main.js at load time.
@@ -140,13 +148,35 @@ function clearPresence() {
   lastPayload = null;
   sessionKey = null;
   sessionStart = null;
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
   if (client && connected) {
     client.clearActivity().catch(() => {});
   }
 }
 
+// Re-push the most recent payload to Discord without any de-dup gating.
+// Used by the heartbeat to refresh asset cache. Best-effort; failures here
+// are not fatal — the next real updatePresence() call will recover.
+function refreshActivityNow() {
+  if (!client || !connected) return;
+  if (!lastPayload) return;
+  client.setActivity(lastPayload).catch(err => {
+    const msg = err.message || String(err);
+    logToFile(`heartbeat setActivity failed: ${msg}`);
+  });
+}
+
+function startHeartbeat() {
+  if (heartbeatTimer) return;
+  heartbeatTimer = setInterval(refreshActivityNow, HEARTBEAT_MS);
+}
+
 async function init() {
   await connect();
+  startHeartbeat();
   // periodic reconnect if Discord client is closed/reopened
   setInterval(() => {
     if (!connected) connect().catch(() => {});
