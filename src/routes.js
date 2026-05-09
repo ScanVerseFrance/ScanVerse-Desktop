@@ -130,7 +130,14 @@ function getPresenceForRoute(route, params = {}, extras = {}) {
     case 'reader': {
       const cover = sanitizeImage(params.cover);
       const title = params.title || 'une œuvre';
-      const chapter = params.chapter != null ? params.chapter : '?';
+      // Strip the "s1_scans_..." slug noise so Discord shows "Tome 1" /
+      // "Chapitre 6" / "Chapitre 1089" instead of the raw catalogue id.
+      const chapter = cleanChapterLabel(params.chapter, params.id);
+      // Tomes / Intégrales already carry their own label ("Tome 1") and
+      // sound weird with a "Chapitre " prefix. Detect those and use the
+      // label as-is; for everything else we keep the "Chapitre <N>" copy.
+      const isVolumeLabel = /^(Tome|Intégrale|Hors-série)\s/.test(chapter);
+      const chapterLine = isVolumeLabel ? chapter : `Chapitre ${chapter}`;
       // Page counter — appended only when both currentPage and totalPages
       // are valid numbers, so we don't show "page undefined/undefined".
       const pageInfo =
@@ -146,7 +153,7 @@ function getPresenceForRoute(route, params = {}, extras = {}) {
           ...base,
           _sessionKey: `reader:${params.id || 'unknown'}`,
           details: `📖 En pause sur ${truncate(title, 92)}`,
-          state: truncate(`Chapitre ${chapter}${pageInfo}`, 128),
+          state: truncate(`${chapterLine}${pageInfo}`, 128),
           largeImageKey: cover || FALLBACK_LARGE_KEY,
           largeImageText: truncate(params.title || 'ScanVerse', 96),
           buttons: buildMangaButton(params.id),
@@ -159,7 +166,7 @@ function getPresenceForRoute(route, params = {}, extras = {}) {
         // session.
         _sessionKey: `reader:${params.id || 'unknown'}`,
         details: `Lit ${truncate(title, 96)}`,
-        state: truncate(`Chapitre ${chapter}${pageInfo}`, 128),
+        state: truncate(`${chapterLine}${pageInfo}`, 128),
         largeImageKey: cover || FALLBACK_LARGE_KEY,
         largeImageText: truncate(params.title || 'ScanVerse', 96),
         buttons: buildMangaButton(params.id),
@@ -261,6 +268,48 @@ function truncate(str, max) {
 }
 
 /**
+ * Cleans up a chapter "id" before it ends up in Discord's activity state.
+ * Catalogue / comics-tracker chapter ids are stored as long slugs like
+ *   s1_scans__dc__dc_absolute__absolute_superman_Absolute_Superman_2025_T1
+ * which the frontend hook passes verbatim when no admin-edited chapter
+ * title is set. The previous build leaked that slug straight into the
+ * "Chapitre s1_scans_..." line on Discord, which kazu reported.
+ *
+ * Same regex catalogue as the site's deriveChapterLabel:
+ *   ..._T(N)   → "Tome N"
+ *   ..._INT(N) → "Intégrale N"
+ *   ..._HS(N)  → "Hors-série N"
+ *   ..._<num>  → bare number (the "Chapitre " prefix is added by the caller)
+ *   anything else → prettified suffix (underscores → spaces)
+ *
+ * `mangaId` is optional — when supplied we strip it as a prefix to keep
+ * the label tight (the manga title already shows in the activity details
+ * line, no need to repeat it inside the chapter label).
+ */
+function cleanChapterLabel(rawChapter, mangaId) {
+  if (rawChapter == null) return '?';
+  let s = String(rawChapter);
+  // Bare numeric chapter ("1089", "5.5") — pass through unchanged.
+  if (/^\d+(?:\.\d+)?$/.test(s)) return s;
+  // Strip the parent manga slug if it leaked into the chapter id.
+  if (mangaId && typeof mangaId === 'string' && s.startsWith(mangaId + '_')) {
+    s = s.slice(mangaId.length + 1);
+  }
+  let m = s.match(/_T(\d+)$/i);
+  if (m) return `Tome ${parseInt(m[1], 10)}`;
+  m = s.match(/_INT(\d+)$/i);
+  if (m) return `Intégrale ${parseInt(m[1], 10)}`;
+  m = s.match(/_HS(\d+)$/i);
+  if (m) return `Hors-série ${parseInt(m[1], 10)}`;
+  // Trailing bare number — drop the prefix slug, keep the issue number.
+  m = s.match(/_(\d+(?:\.\d+)?)$/);
+  if (m) return m[1];
+  // Last resort — strip "s1_scans_" prefix if still there, then prettify.
+  s = s.replace(/^s1_scans_+/i, '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  return s || '?';
+}
+
+/**
  * Discord Rich Presence supports passing a full HTTPS URL as largeImageKey
  * (Discord proxies it through their CDN). LAN URLs (192.168.x.x) won't work
  * because Discord's servers can't reach them — those return null and we fall
@@ -332,4 +381,4 @@ function buildMangaButton(id) {
   }
 }
 
-module.exports = { getPresenceForRoute };
+module.exports = { getPresenceForRoute, cleanChapterLabel };

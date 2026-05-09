@@ -23,7 +23,7 @@ if (process.platform === 'win32') {
 
 const ICON_PATH = path.join(__dirname, '..', 'assets', 'icon.png');
 const { init: initRpc, updatePresence, clearPresence } = require('./rpc');
-const { getPresenceForRoute } = require('./routes');
+const { getPresenceForRoute, cleanChapterLabel } = require('./routes');
 const { checkForUpdates } = require('./update-check');
 const fs = require('fs');
 const os = require('os');
@@ -214,6 +214,64 @@ async function pollOnlineCount() {
   } catch { /* ignore */ }
 }
 
+// Build a short, human-readable label for the custom title bar from a
+// URL-parsed route. We keep this independent from the RPC payload (which
+// has its own "details / state" copy) — the title bar is more compact
+// and uses Discord-channel-style "ScanVerse · <context>" formatting.
+function titleBarLabelFor(route, params = {}) {
+  switch (route) {
+    case 'home':              return 'Accueil';
+    case 'catalogue':         return params.type === 'comics' ? 'Catalogue · Comics' : 'Catalogue · Manga';
+    case 'manga':             return params.title ? `${params.title}` : 'Fiche d\'œuvre';
+    case 'reader': {
+      // When the React hook has pushed rich data we know the manga title
+      // and chapter — show "One Piece — Ch.1089". Otherwise fall back to
+      // the generic "Lecture en cours" until the hook fires.
+      const t = params.title || null;
+      const ch = params.chapter != null ? cleanChapterLabel(params.chapter, params.id) : null;
+      if (t && ch) {
+        const isVol = /^(Tome|Intégrale|Hors-série)\s/.test(ch);
+        return isVol ? `${t} — ${ch}` : `${t} — Ch.${ch}`;
+      }
+      if (t) return t;
+      return 'Lecture en cours';
+    }
+    case 'profile':           return params.username ? `Profil de @${params.username}` : 'Profil';
+    case 'friends':           return 'Amis';
+    case 'wrapped':           return params.year ? `Wrapped ${params.year}` : 'Wrapped';
+    case 'admin':             return 'Espace admin';
+    case 'login':             return 'Connexion';
+    case 'register':          return 'Inscription';
+    case 'settings':          return 'Réglages';
+    case 'settings-blocked':  return 'Réglages · Blocages';
+    case 'settings-privacy':  return 'Réglages · Confidentialité';
+    case 'settings-appearance': return 'Réglages · Apparence';
+    case 'settings-music':    return 'Réglages · Musique';
+    case 'settings-reader':   return 'Réglages · Lecteur';
+    case 'universe':          return 'Univers';
+    case 'suggestions':       return 'Suggestions';
+    case 'premium':           return 'Premium';
+    case 'about':             return 'À propos';
+    case 'contact':           return 'Contact';
+    case 'privacy':           return 'Confidentialité';
+    case 'terms':             return 'CGU';
+    case 'changelog':         return 'Changelog';
+    case 'notfound':          return 'Page introuvable';
+    default:                  return 'ScanVerse';
+  }
+}
+
+// Push the current title-bar context to the renderer. The injected bar
+// in preload.js listens for this IPC channel and updates its label —
+// this is what swaps "Accueil" → "Lecture en cours" when the user opens
+// a chapter, etc. Rich data pushed by the React hook (manga title, etc.)
+// arrives through a separate channel and replaces this URL fallback.
+function broadcastTitleBarContext(route, params = {}) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const label = titleBarLabelFor(route, params);
+  mainWindow.webContents.send('titlebar:context', { route, params, label });
+}
+
 function emitPresenceFromUrl(urlStr) {
   if (!rpcEnabled) return;
   const parsed = parseRouteFromUrl(urlStr);
@@ -255,6 +313,20 @@ function createWindow() {
     backgroundColor: '#0a0a0f',
     autoHideMenuBar: true,
     title: 'ScanVerse',
+    // Custom title bar — Discord-style. We hide the OS chrome and let
+    // titleBarOverlay paint the native min/max/close on the right with
+    // colors that match the app (#0a0a0f bg / #9090a8 icons), then the
+    // preload script injects a draggable strip on the left with the SV
+    // logo + the current page name. Height is mirrored both here (so
+    // Electron reserves the right amount of space for the overlay) and
+    // in preload.js' CSS so the injected bar lines up perfectly with
+    // the native controls.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: {
+      color: '#0a0a0f',
+      symbolColor: '#9090a8',
+      height: 32,
+    },
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -327,6 +399,16 @@ function createWindow() {
     // fallback renders cleanly until the new page's hook fires.
     lastRichPayload = null;
     console.log(`[Main] URL change (${reason}):`, url);
+    // Title bar follows URL changes regardless of the RPC privacy toggle —
+    // even users who hide their Discord activity still want to know
+    // which page they're on. The RPC emit is gated separately. We skip
+    // data: / chrome: URLs (splash / error pages) because parseRouteFromUrl
+    // would route them to "notfound" and briefly flash "Page introuvable"
+    // in the title bar while the real site loads.
+    if (/^https?:/i.test(url)) {
+      const parsed = parseRouteFromUrl(url);
+      if (parsed) broadcastTitleBarContext(parsed.route, parsed.params || {});
+    }
     emitPresenceFromUrl(url);
   }
   mainWindow.webContents.on('did-navigate',         (_e, _url) => checkUrl('did-navigate'));
@@ -510,9 +592,14 @@ app.on('window-all-closed', () => {
 
 // IPC: page -> main, push rich presence data
 ipcMain.on('presence:update', (_event, msg) => {
-  if (!rpcEnabled) return;
   if (!msg || typeof msg.route !== 'string') return;
   console.log('[Main] presence:update from page —', msg.route, JSON.stringify(msg.params));
+  // Title bar consumes the rich data unconditionally — even with RPC off,
+  // the user wants the page label to read "One Piece" rather than the
+  // generic "Lecture en cours". The Discord push, on the other hand,
+  // still respects the privacy toggle below.
+  broadcastTitleBarContext(msg.route, msg.params || {});
+  if (!rpcEnabled) return;
   // Cache the rich payload so wrapper-internal re-emissions (online-count
   // tick, focus events…) can preserve title/cover/author instead of
   // collapsing to the URL fallback.
