@@ -252,6 +252,20 @@ function getPresenceForRoute(route, params = {}, extras = {}) {
     case 'changelog':
       return { ...base, details: 'Lit les notes de version', state: 'Historique des updates' };
 
+    case 'messages': {
+      // Two flavours of /messages:
+      //   - bare /messages → user is on the inbox / picking a thread
+      //   - /messages/:handle → in conversation with @handle
+      // The frontend hook may not push a handle on the inbox view; URL
+      // detection in main.js fills params.handle when one is in the path.
+      const handle = params.handle ? `@${truncate(params.handle, 30)}` : null;
+      return {
+        ...base,
+        details: handle ? 'Discute en privé' : 'Lit ses messages',
+        state: handle || ('Boîte de réception' + onlineSuffix),
+      };
+    }
+
     case 'notfound':
       return { ...base, details: "S'est perdu", state: 'Page introuvable' };
 

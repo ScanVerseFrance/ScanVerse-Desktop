@@ -175,6 +175,13 @@ function parseRouteFromUrl(urlStr) {
   if (p === '/privacy-policy') return { route: 'privacy' };
   if (p === '/terms') return { route: 'terms' };
   if (p === '/changelog') return { route: 'changelog' };
+  // /messages and /messages/:handle — the inbox view + per-thread view.
+  // We pass the handle through so both the title bar and Discord RPC can
+  // show "Discute avec @kazu" rather than a generic label.
+  if (p === '/messages' || p.startsWith('/messages/')) {
+    const handle = p.match(/^\/messages\/([^/?#]+)/)?.[1] || null;
+    return { route: 'messages', params: handle ? { handle: decodeURIComponent(handle) } : {} };
+  }
   return { route: 'notfound' };
 }
 
@@ -256,6 +263,7 @@ function titleBarLabelFor(route, params = {}) {
     case 'privacy':           return 'Confidentialité';
     case 'terms':             return 'CGU';
     case 'changelog':         return 'Changelog';
+    case 'messages':          return params.handle ? `Messages · @${params.handle}` : 'Messages';
     case 'notfound':          return 'Page introuvable';
     default:                  return 'ScanVerse';
   }
