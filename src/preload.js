@@ -66,6 +66,17 @@ window.addEventListener('DOMContentLoaded', () => {
 // ──────────────────────────────────────────────────────────────────────────
 
 const TITLE_BAR_HEIGHT = 32; // mirrors titleBarOverlay.height in main.js
+
+// Expose the title bar height as a CSS custom property so the site can
+// account for it in viewport-height calculations (`100vh - 72px - var()`)
+// and full-screen overlays (`top: var(...)`). On the web the variable
+// defaults to 0 px (the site never sets it), so existing layouts keep
+// working unchanged. Set as early as possible — `documentElement` is
+// available before DOMContentLoaded so the first paint already has the
+// right value, no FOUC.
+try {
+  document.documentElement.style.setProperty('--sv-titlebar-height', `${TITLE_BAR_HEIGHT}px`);
+} catch { /* document not yet available — fallback below in injectTitleBar */ }
 // The native min/max/close icons sit on the right edge of the window via
 // titleBarOverlay. We need to keep enough horizontal padding free in our
 // custom bar so we don't paint behind them. Windows reserves ~140 px for
