@@ -10,7 +10,7 @@
  *   SCANVERSE_DEV   — if set, defaults to http://localhost:5173 + opens DevTools
  *   (otherwise defaults to https://scanverse.fr — the public prod URL)
  */
-const { app, BrowserWindow, ipcMain, shell, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, nativeImage, powerMonitor } = require('electron');
 const path = require('path');
 
 // Windows app identity — without this, Windows lumps the dev process under
@@ -412,12 +412,29 @@ function createWindow() {
     if (!mainWindow || mainWindow.isDestroyed()) return;
     const url = mainWindow.webContents.getURL();
     if (!url || url === lastSeenUrl) return;
+    const prevUrl = lastSeenUrl;
     lastSeenUrl = url;
-    // The URL changed → any previously cached rich payload is stale
-    // (different page, different manga, etc.). Drop it so the URL-based
-    // fallback renders cleanly until the new page's hook fires.
-    lastRichPayload = null;
-    console.log(`[Main] URL change (${reason}):`, url);
+    // We used to drop lastRichPayload unconditionally on every URL
+    // change. That broke same-manga chapter switches (and even React
+    // Router pushState within the same page): the next emit ran the
+    // URL fallback ("Lit une œuvre · Chapitre 25") for the few hundred
+    // ms before the React hook re-fired, and friends saw that exact
+    // stale state on Discord — verified in prod when kazu's friend's
+    // RPC stuck on "Lit une œuvre / Chapitre 25 / 41:22".
+    //
+    // emitPresenceFromUrl already knows how to pick between cache and
+    // URL fallback based on route + id match. So we just clear the
+    // cache when the route OR id actually differs from the cached one;
+    // chapter-only changes ("/read/X/24" → "/read/X/25") keep the rich
+    // payload so cover + title survive.
+    const prevParsed = prevUrl ? parseRouteFromUrl(prevUrl) : null;
+    const nextParsed = parseRouteFromUrl(url);
+    const idChanged =
+      !prevParsed || !nextParsed ||
+      prevParsed.route !== nextParsed.route ||
+      String(prevParsed.params?.id || '') !== String(nextParsed.params?.id || '');
+    if (idChanged) lastRichPayload = null;
+    console.log(`[Main] URL change (${reason}):`, url, idChanged ? '— cache cleared' : '— cache kept');
     // Title bar follows URL changes regardless of the RPC privacy toggle —
     // even users who hide their Discord activity still want to know
     // which page they're on. The RPC emit is gated separately. We skip
@@ -434,7 +451,48 @@ function createWindow() {
   mainWindow.webContents.on('did-navigate-in-page', (_e, _url) => checkUrl('did-navigate-in-page'));
   const pollId = setInterval(() => checkUrl('poll'), 1000);
 
-  mainWindow.on('closed', () => { clearInterval(pollId); mainWindow = null; });
+  // OS-level idle detection — fallback for the frontend's idle timer.
+  // The renderer's idle detection (frontend/src/pages/ReaderPage.jsx) is
+  // the source of truth when the user is actively focused on ScanVerse,
+  // but it's gated on `document.hidden` so it stops ticking when the
+  // window loses focus. We've seen RPC stuck on "Lit une œuvre / Ch.25"
+  // for 40+ min while the user was AFK because the renderer's idle
+  // never fired in the background.
+  //
+  // powerMonitor.getSystemIdleTime() reads OS-level mouse/keyboard
+  // idle time, so it works regardless of which window is focused. We
+  // poll every 60 s and, when the user has been OS-idle for >= 10 min
+  // AND we have a cached rich payload for a manga / reader page, we
+  // re-emit it with idle:true so Discord shows the "📖 En pause sur"
+  // wording + cover. When activity resumes, we re-emit without idle
+  // so it flips back to "Lit One Piece" instantly.
+  const OS_IDLE_THRESHOLD_S = 10 * 60; // 10 min
+  let wrapperIdle = false;
+  const idlePollId = setInterval(() => {
+    if (!rpcEnabled) return;
+    if (!lastRichPayload) return;
+    // Only meaningful for routes that have an idle path in routes.js —
+    // currently 'reader'. 'manga' and others don't render an idle
+    // variant, so flipping idle there would be a no-op visual change.
+    if (lastRichPayload.route !== 'reader') return;
+    let idleSeconds;
+    try { idleSeconds = powerMonitor.getSystemIdleTime(); }
+    catch { return; /* unsupported on this OS — fall through */ }
+    const shouldBeIdle = idleSeconds >= OS_IDLE_THRESHOLD_S;
+    if (shouldBeIdle === wrapperIdle) return;
+    wrapperIdle = shouldBeIdle;
+    const merged = { ...lastRichPayload.params, idle: shouldBeIdle };
+    lastRichPayload = { route: lastRichPayload.route, params: merged };
+    const payload = getPresenceForRoute(lastRichPayload.route, merged, { onlineCount });
+    if (payload) updatePresence(payload);
+    console.log(`[Main] wrapper idle → ${shouldBeIdle} (${idleSeconds}s OS idle)`);
+  }, 60_000);
+
+  mainWindow.on('closed', () => {
+    clearInterval(pollId);
+    clearInterval(idlePollId);
+    mainWindow = null;
+  });
 
   // ── Loading + error overlays ─────────────────────────────────────────
   // Without these we'd briefly flash the BrowserWindow's #0a0a0f

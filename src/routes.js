@@ -152,7 +152,7 @@ function getPresenceForRoute(route, params = {}, extras = {}) {
         return {
           ...base,
           _sessionKey: `reader:${params.id || 'unknown'}`,
-          details: `📖 En pause sur ${truncate(title, 92)}`,
+          details: `💤 Inactif sur ${truncate(title, 95)}`,
           state: truncate(`${chapterLine}${pageInfo}`, 128),
           largeImageKey: cover || FALLBACK_LARGE_KEY,
           largeImageText: truncate(params.title || 'ScanVerse', 96),
@@ -253,19 +253,15 @@ function getPresenceForRoute(route, params = {}, extras = {}) {
       return { ...base, details: 'Lit les notes de version', state: 'Historique des updates' };
 
     case 'messages': {
-      // Two flavours of /messages:
-      //   - bare /messages → user is on the inbox / picking a thread
-      //   - /messages/:handle → in conversation with @handle
-      // The frontend hook may not push a handle on the inbox view; URL
-      // detection in main.js fills params.handle when one is in the path.
-      // Avoid "ScanVerse / Sur ScanVerse" repetition on the inbox view —
-      // Discord already prints the app name above details, so we only
-      // surface the action verb ("Dans la messagerie" / "Discute avec").
-      const handle = params.handle ? `@${truncate(params.handle, 30)}` : null;
+      // Privacy: never leak the @handle of the person you're DMing
+      // through the RPC presence — Discord broadcasts your activity
+      // to every friend, and "Discute avec @samy" would tell each of
+      // them who else you're talking to. Same wording for both views.
+      const onThread = !!params.handle;
       return {
         ...base,
-        details: handle ? `Discute avec ${handle}` : 'Dans la messagerie',
-        state: handle ? 'Discussion privée' : ('Boîte de réception' + onlineSuffix),
+        details: onThread ? 'Discussion privée' : 'Dans la messagerie',
+        state: onThread ? 'En conversation' : ('Boîte de réception' + onlineSuffix),
       };
     }
 
