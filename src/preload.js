@@ -21,9 +21,15 @@
  */
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Read the wrapper's version from its own package.json so it stays in
+// sync without manual edits. Falls back to '?.?.?' if the require fails
+// for any reason (the renderer ignores unknown values cleanly).
+let WRAPPER_VERSION = '?.?.?';
+try { WRAPPER_VERSION = require('../package.json').version || WRAPPER_VERSION; } catch {}
+
 contextBridge.exposeInMainWorld('scanverse', {
   isElectron: true,
-  version: '0.1.0',
+  version: WRAPPER_VERSION,
   /**
    * @param {string} route   one of: home | catalogue | manga | reader | profile |
    *                         friends | wrapped | admin | login | register | settings | notfound
@@ -156,6 +162,24 @@ function injectTitleBar() {
       color: #f0f0f5;
       font-weight: 600;
     }
+
+    /* Tiny version pill — sits between the context label and the
+       reserved area for the native min/max/close icons. Discreet on
+       purpose: just enough to confirm which build the user is on
+       when reporting a bug. */
+    #sv-titlebar .sv-tb-version {
+      flex-shrink: 0;
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      color: #5a5a72;
+      padding: 3px 7px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(255,255,255,0.02);
+      text-transform: lowercase;
+    }
   `;
   document.head.appendChild(style);
 
@@ -167,8 +191,21 @@ function injectTitleBar() {
     <span class="sv-tb-logo">Scan<span class="accent">Verse</span></span>
     <span class="sv-tb-divider"></span>
     <span class="sv-tb-context" id="sv-tb-context">Accueil</span>
+    <span class="sv-tb-version" id="sv-tb-version" title="Version de l'application"></span>
   `;
   document.body.appendChild(bar);
+
+  // Populate the version pill from the wrapper's own package.json.
+  // textContent (not innerHTML) so a malformed version string can't
+  // inject markup. The pill is hidden when version is unknown.
+  const verEl = document.getElementById('sv-tb-version');
+  if (verEl) {
+    if (WRAPPER_VERSION && WRAPPER_VERSION !== '?.?.?') {
+      verEl.textContent = 'v' + WRAPPER_VERSION;
+    } else {
+      verEl.style.display = 'none';
+    }
+  }
 
   // React Router only owns the in-page area; in case the site itself
   // ever sets `position: fixed` on something at top: 0, our z-index
