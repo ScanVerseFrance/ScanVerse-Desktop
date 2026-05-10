@@ -347,6 +347,17 @@ function createWindow() {
       // "Inspect", no programmatic openDevTools()). Dev mode keeps it on
       // so we can still debug the wrapper itself.
       devTools: isDev,
+      // Kazu-reported bug: alt-tabbing away for a while comes back to a
+      // black screen with all UI gone. Chromium's default behaviour for
+      // backgrounded windows is to throttle requestAnimationFrame to 1 Hz,
+      // freeze JS timers, and eventually evict WebGL contexts — the home
+      // / catalogue Three.js background and the per-layer profile-effect
+      // intervals don't recover cleanly when those resources come back.
+      // Disabling backgroundThrottling keeps the renderer ticking at full
+      // speed while unfocused. Cost: ~constant CPU when the window is
+      // minimized, which is the right trade for a chat/reader app where
+      // the user expects to come back to a live page.
+      backgroundThrottling: false,
     },
   });
 
