@@ -258,11 +258,14 @@ function getPresenceForRoute(route, params = {}, extras = {}) {
       //   - /messages/:handle → in conversation with @handle
       // The frontend hook may not push a handle on the inbox view; URL
       // detection in main.js fills params.handle when one is in the path.
+      // Avoid "ScanVerse / Sur ScanVerse" repetition on the inbox view —
+      // Discord already prints the app name above details, so we only
+      // surface the action verb ("Dans la messagerie" / "Discute avec").
       const handle = params.handle ? `@${truncate(params.handle, 30)}` : null;
       return {
         ...base,
-        details: handle ? 'Discute en privé' : 'Lit ses messages',
-        state: handle || ('Boîte de réception' + onlineSuffix),
+        details: handle ? `Discute avec ${handle}` : 'Dans la messagerie',
+        state: handle ? 'Discussion privée' : ('Boîte de réception' + onlineSuffix),
       };
     }
 

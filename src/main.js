@@ -263,7 +263,7 @@ function titleBarLabelFor(route, params = {}) {
     case 'privacy':           return 'Confidentialité';
     case 'terms':             return 'CGU';
     case 'changelog':         return 'Changelog';
-    case 'messages':          return params.handle ? `Messages · @${params.handle}` : 'Messages';
+    case 'messages':          return params.handle ? `Messagerie · @${params.handle}` : 'Messagerie';
     case 'notfound':          return 'Page introuvable';
     default:                  return 'ScanVerse';
   }
