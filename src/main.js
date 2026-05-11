@@ -653,8 +653,16 @@ app.whenReady().then(async () => {
   // Update check — fire after a longer delay so the dialog doesn't
   // pop in the user's face during the initial site load. Skipped in
   // dev so we don't get prompted while iterating on the wrapper.
+  //
+  // Re-check every 4 h while the app stays open. Previously, users
+  // who kept ScanVerse running for days never saw an update until
+  // they restarted manually. The custom modal swallows the case
+  // where the update modal is already open (single-window guard
+  // inside showUpdateWindow), so the interval is safe to keep
+  // ticking indefinitely.
   if (!isDev) {
     setTimeout(() => checkForUpdates(mainWindow).catch(() => {}), 8000);
+    setInterval(() => checkForUpdates(mainWindow).catch(() => {}), 4 * 60 * 60 * 1000);
   }
 
   app.on('activate', () => {
