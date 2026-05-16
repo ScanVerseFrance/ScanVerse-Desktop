@@ -11,9 +11,9 @@
   --text: #f0f0f5;
   --text-dim: #9090a8;
   --text-faint: #5a5a72;
-  --accent: #a855f7;
+  --accent: #e63946;
   --accent-2: #f59e0b;
-  --accent-soft: rgba(168, 85, 247, 0.16);
+  --accent-soft: rgba(230, 57, 70, 0.16);
   --danger: #ef4444;
   --success: #22c55e;
 }
@@ -52,9 +52,10 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
   color: var(--text-dim); font-weight: 600; font-size: 12px; letter-spacing: 0;
 }
 /* Wordmark — matches the navbar on www.scanverse.online exactly:
-   "Scan" in white + "Verse" in the accent purple. No icon, no mark.
+   "Scan" in white + "Verse" in the brand red (#e63946 via --accent).
    The earlier gradient SV badge looked off-brand because the actual
-   logo on the site is type-only.                                          */
+   logo on the site is type-only. Switched from violet (#a855f7) on
+   2026-05-16 to match the refreshed SV logo (red V).                       */
 .logo-text-accent { color: var(--accent); }
 
 /* Big wordmark used on the welcome hero — same logic, just scaled up
@@ -65,7 +66,7 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
   letter-spacing: -1.6px;
   line-height: 1;
   color: var(--text);
-  text-shadow: 0 0 28px rgba(168,85,247,0.45);
+  text-shadow: 0 0 28px rgba(230,57,70,0.45);
 }
 .wordmark-big-accent { color: var(--accent); }
 .titlebar-actions { display: flex; gap: 2px; -webkit-app-region: no-drag; }
@@ -105,7 +106,7 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 }
 .hero-glow {
   position: absolute; inset: -40px;
-  background: radial-gradient(ellipse at center, rgba(168,85,247,0.25) 0%, transparent 70%);
+  background: radial-gradient(ellipse at center, rgba(230,57,70,0.25) 0%, transparent 70%);
   pointer-events: none;
   filter: blur(20px);
 }
@@ -178,7 +179,7 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 .license-box code {
   background: var(--surface-2); padding: 1px 6px; border-radius: 4px;
   font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px;
-  color: #c4b5fd;
+  color: #fca5a5;
 }
 .license-box strong { color: var(--text); }
 .license-box::-webkit-scrollbar { width: 8px; }
@@ -204,7 +205,7 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 .check input:checked + .check-box {
   background: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 0 12px rgba(168,85,247,0.55);
+  box-shadow: 0 0 12px rgba(230,57,70,0.55);
 }
 .check input:checked + .check-box::after {
   content: ''; position: absolute;
@@ -251,12 +252,12 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
 }
 .btn:active { transform: scale(0.97); }
 .btn.primary {
-  background: linear-gradient(135deg, var(--accent) 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, #b91c1c 100%);
   color: #fff;
-  box-shadow: 0 0 18px rgba(168,85,247,0.35), inset 0 1px 0 rgba(255,255,255,0.2);
+  box-shadow: 0 0 18px rgba(230,57,70,0.35), inset 0 1px 0 rgba(255,255,255,0.2);
 }
 .btn.primary:hover {
-  box-shadow: 0 0 26px rgba(168,85,247,0.55), inset 0 1px 0 rgba(255,255,255,0.25);
+  box-shadow: 0 0 26px rgba(230,57,70,0.55), inset 0 1px 0 rgba(255,255,255,0.25);
 }
 .btn.primary:disabled {
   opacity: 0.45; cursor: not-allowed; box-shadow: none;
@@ -271,8 +272,10 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
   color: var(--text);
   border-color: var(--border-strong);
 }
-/* Discord button — picks up the brand purple on hover so it stands out
-   among the other ghost buttons without screaming "primary action". */
+/* Discord button — keeps the Discord brand blurple (#5865f2) on hover
+   since that's a Discord-recognisable colour, not the ScanVerse brand.
+   Stands out among the other ghost buttons without competing with the
+   primary red CTA. */
 .btn.btn-discord {
   color: #b8c0ff;
   border-color: rgba(88,101,242,0.35);
@@ -307,7 +310,7 @@ button { font-family: inherit; font-size: inherit; cursor: pointer; }
   background: linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);
   border-radius: 4px;
   transition: width 0.25s ease;
-  box-shadow: 0 0 12px rgba(168,85,247,0.55);
+  box-shadow: 0 0 12px rgba(230,57,70,0.55);
 }
 .progress-detail {
   font-family: 'JetBrains Mono', ui-monospace, monospace;

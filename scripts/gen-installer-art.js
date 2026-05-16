@@ -13,17 +13,17 @@ const sharp = require('sharp');
 const ROOT = path.join(__dirname, '..');
 const ICON = path.join(ROOT, 'assets', 'icon.png');
 
-const ACCENT_RGB = { r: 168, g: 85,  b: 247 }; // #a855f7 — ScanVerse purple
+const ACCENT_RGB = { r: 230, g: 57,  b: 70  }; // #e63946 — ScanVerse red
 const BG_DARK    = { r: 10,  g: 10,  b: 15  }; // #0a0a0f — page background
 const BG_MID     = { r: 24,  g: 24,  b: 31  }; // #18181f — surface
 
 async function makeSidebar(out, width = 164, height = 314) {
-  // Vertical gradient from BG_DARK at top to a tinted purple at bottom,
+  // Vertical gradient from BG_DARK at top to a tinted red at bottom,
   // with the icon centered roughly in the upper third.
   const buf = Buffer.alloc(width * height * 4);
   for (let y = 0; y < height; y++) {
     const t = y / (height - 1);
-    // ease-out so the purple bloom feels softer.
+    // ease-out so the red bloom feels softer.
     const eased = Math.pow(t, 1.4);
     const r = Math.round(BG_DARK.r + (ACCENT_RGB.r * 0.35 - BG_DARK.r) * eased);
     const g = Math.round(BG_DARK.g + (ACCENT_RGB.g * 0.20 - BG_DARK.g) * eased);

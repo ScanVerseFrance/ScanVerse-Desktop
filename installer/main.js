@@ -4,7 +4,7 @@
  * This is a separate mini-Electron app whose only job is to deploy the
  * actual ScanVerse desktop app onto the user's machine. Replaces the
  * default NSIS wizard so we can render the install flow with the same
- * design tokens as the rest of ScanVerse (dark + violet, Syne typeface,
+ * design tokens as the rest of ScanVerse (dark + red, Syne typeface,
  * animated accents) instead of generic Win32 controls.
  *
  * Bundle layout when packed:
